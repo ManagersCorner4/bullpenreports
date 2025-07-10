@@ -1,0 +1,241 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bullpen Report Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    #controls { margin-bottom: 20px; }
+    #report { background: white; padding: 30px; max-width: 950px; margin: auto; border: 1px solid #ccc; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; }
+    h1 { margin: 0; }
+    h2 { font-weight: normal; color: #555; margin-top: 5px; }
+    .chart-title { font-weight: bold; text-align: center; margin-bottom: 5px; }
+    .top-row { display: flex; justify-content: space-between; margin-top: 20px; }
+    .goals { width: 45%; }
+    .goal { margin-bottom: 10px; }
+    .goal input { width: 70%; }
+    .goal select.pass { color: green; font-weight: bold; }
+    .goal select.fail { color: red; font-weight: bold; }
+    .data-table { margin-top: 30px; width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    .data-table th { background: #eee; }
+    .bottom-row { display: flex; justify-content: space-between; margin-top: 30px; }
+    .bottom-left, .bottom-right { width: 48%; }
+    canvas { background: white; border: 1px solid #ccc; }
+    #downloadBtn { display: block; margin: 20px auto; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <input type="file" id="csvFile" accept=".csv" />
+    <select id="pitcherSelect"></select>
+    <select id="dateSelect"></select>
+    <button id="downloadBtn">Download PDF</button>
+  </div>
+
+  <div id="report">
+    <div class="header-row">
+      <div>
+        <h1>Bullpen Report</h1>
+        <h2 id="subtitle">Pitcher – Date</h2>
+      </div>
+      <div>
+        <div class="chart-title">Pitch Usage</div>
+        <canvas id="pitchPieChart" width="200" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="top-row">
+      <div class="goals">
+        <div class="goal"><input type="text" value="Goal 1: Command 70%" />
+          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+        </div>
+        <div class="goal"><input type="text" value="Goal 2: First Pitch Strike 60%" />
+          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+        </div>
+        <div class="goal"><input type="text" value="Goal 3: 2K Putaway 25%" />
+          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+        </div>
+      </div>
+    </div>
+
+    <table class="data-table" id="metricsTable"></table>
+
+    <div class="bottom-row">
+      <div class="bottom-left"><canvas id="locationChart" width="400" height="400"></canvas></div>
+      <div class="bottom-right"><table class="data-table" id="zoneTable"></table></div>
+    </div>
+  </div>
+
+  <script>
+    let parsedData = [];
+    let locationChart;
+
+    const pitchTypeMap = {
+      Fastball: "FA", Sinker: "SI", Slider: "SL", Cutter: "CT",
+      Changeup: "CH", Splitter: "CH", Curveball: "CB"
+    };
+
+    const pitchColorMap = {
+      FA: 'red', SI: '#a34700', SL: 'cornflowerblue', CT: 'gold',
+      CH: 'violet', CB: 'darkgreen'
+    };
+
+    document.getElementById('csvFile').addEventListener('change', function (e) {
+      Papa.parse(e.target.files[0], {
+        header: true,
+        dynamicTyping: true,
+        complete: function (results) {
+          parsedData = results.data.filter(d => {
+            const tag = d.TaggedPitchType?.trim();
+            return d.first_last && d.Date && tag && tag.toLowerCase() !== 'other' && pitchTypeMap[tag];
+          });
+          populateDropdowns();
+        }
+      });
+    });
+
+    function populateDropdowns() {
+      const pitcherSelect = document.getElementById('pitcherSelect');
+      const dateSelect = document.getElementById('dateSelect');
+      const pitchers = [...new Set(parsedData.map(d => d.first_last))];
+      pitcherSelect.innerHTML = pitchers.map(p => `<option>${p}</option>`).join('');
+      pitcherSelect.onchange = () => updateDateOptions();
+      updateDateOptions();
+    }
+
+    function updateDateOptions() {
+      const pitcher = document.getElementById('pitcherSelect').value;
+      const dates = [...new Set(parsedData.filter(d => d.first_last === pitcher).map(d => d.Date))];
+      const dateSelect = document.getElementById('dateSelect');
+      dateSelect.innerHTML = dates.map(d => `<option>${d}</option>`).join('');
+      dateSelect.onchange = () => drawReport(pitcher, dateSelect.value);
+      drawReport(pitcher, dateSelect.value);
+    }
+
+    function classifyAttackZone(x, y) {
+      if (x >= -0.558 && x <= 0.558 && y >= 1.833 && y <= 3.166) return 'heart';
+      if (x >= -1.108 && x <= 1.108 && y >= 1.166 && y <= 3.833) return 'shadow';
+      if (x >= -1.666 && x <= 1.666 && y >= 0.5 && y <= 4.5) return 'chase';
+      return 'waste';
+    }
+
+    function drawReport(pitcher, date) {
+      document.getElementById('subtitle').innerText = `${pitcher} – ${date}`;
+      const data = parsedData.filter(d => d.first_last === pitcher && d.Date === date);
+
+      const typeCounts = {};
+      const zoneCounts = { heart: 0, shadow: 0, chase: 0, waste: 0 };
+      const metrics = {};
+      const points = [];
+
+      data.forEach(d => {
+        const tag = d.TaggedPitchType?.trim();
+        const type = pitchTypeMap[tag];
+        if (!type) return;
+
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+
+        const x = +d.PlateLocSide;
+        const y = +d.PlateLocHeight;
+        const zone = classifyAttackZone(x, y);
+        zoneCounts[zone]++;
+        points.push({ x, y, type });
+
+        if (!metrics[type]) metrics[type] = { Velo: [], IVB: [], HB: [], Tilt: [] };
+        if (+d.RelSpeed) metrics[type].Velo.push(+d.RelSpeed);
+        if (+d.InducedVertBreak) metrics[type].IVB.push(+d.InducedVertBreak);
+        if (+d.HorzBreak) metrics[type].HB.push(+d.HorzBreak);
+        if (d.Tilt) metrics[type].Tilt.push(d.Tilt);
+      });
+
+      const pieCtx = document.getElementById('pitchPieChart').getContext('2d');
+      new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(typeCounts),
+          datasets: [{ data: Object.values(typeCounts), backgroundColor: Object.keys(typeCounts).map(t => pitchColorMap[t] || 'gray') }]
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom' },
+            datalabels: {
+              formatter: (val, ctx) => {
+                const total = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+                return ((val/total)*100).toFixed(1) + '%';
+              },
+              color: '#000', font: { weight: 'bold' }
+            }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+
+      let table = "<tr><th>Type</th><th>Velo</th><th>IVB</th><th>HB</th><th>Tilt</th></tr>";
+      for (let t in metrics) {
+        const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : '--';
+        table += `<tr><td>${t}</td><td>${avg(metrics[t].Velo)}</td><td>${avg(metrics[t].IVB)}</td><td>${avg(metrics[t].HB)}</td><td>${metrics[t].Tilt[0] || '--'}</td></tr>`;
+      }
+      document.getElementById('metricsTable').innerHTML = table;
+
+      if (locationChart) locationChart.destroy();
+      const locCtx = document.getElementById('locationChart').getContext('2d');
+      locationChart = new Chart(locCtx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Pitches',
+            data: points,
+            pointRadius: 5,
+            backgroundColor: points.map(p => pitchColorMap[p.type]),
+            borderColor: 'black'
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            annotation: {
+              annotations: {
+                heart: { type: 'box', xMin: -0.558, xMax: 0.558, yMin: 1.833, yMax: 3.166, backgroundColor: 'rgba(227,150,255,0.2)' },
+                shadow: { type: 'box', xMin: -1.108, xMax: 1.108, yMin: 1.166, yMax: 3.833, backgroundColor: 'rgba(255,197,150,0.2)' },
+                chase: { type: 'box', xMin: -1.666, xMax: 1.666, yMin: 0.5, yMax: 4.5, backgroundColor: 'rgba(209,209,209,0.2)' }
+              }
+            }
+          },
+          scales: {
+            x: { min: -2, max: 2, grid: { display: false }, title: { display: true, text: 'Plate Side (ft)' }},
+            y: { min: 0, max: 5, grid: { display: false }, title: { display: true, text: 'Plate Height (ft)' }}
+          }
+        }
+      });
+
+      const mlAvg = { heart: '27.6%', shadow: '42.9%', chase: '21.6%', waste: '7.8%' };
+      const total = points.length;
+      let zoneTable = "<tr><th>Zone</th><th>Pitch %</th><th>ML Avg</th></tr>";
+      for (let z in zoneCounts) {
+        const pct = total ? ((zoneCounts[z]/total)*100).toFixed(1) + '%' : '0.0%';
+        const label = z.charAt(0).toUpperCase() + z.slice(1);
+        zoneTable += `<tr><td>${label}</td><td>${pct}</td><td>${mlAvg[z]}</td></tr>`;
+      }
+      document.getElementById('zoneTable').innerHTML = zoneTable;
+    }
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      html2pdf().set({
+        margin: 0.2,
+        filename: 'bullpen_report.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(document.getElementById('report')).save();
+    });
+  </script>
+</body>
+</html>
