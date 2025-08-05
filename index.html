@@ -13,7 +13,7 @@
     #controls { margin-bottom: 20px; }
     #report {
       background: white;
-      padding: 20px 30px 20px 30px;
+      padding: 20px 30px;
       max-width: 950px;
       margin: auto;
       border: 1px solid #ccc;
@@ -51,11 +51,10 @@
     .bottom-left, .bottom-right { width: 48%; }
     canvas { background: white; border: 1px solid #ccc; }
     #downloadBtn { display: block; margin: 20px auto; }
-
     #zoneTable.pdf-scale {
-      transform: scale(0.75);
+      transform: scale(0.66);
       transform-origin: top left;
-      margin-left: 140px; /* shifted further right */
+      margin-left: 140px;
     }
   </style>
 </head>
@@ -196,6 +195,54 @@
         if (d.Tilt) metrics[type].Tilt.push(d.Tilt);
       });
 
+      if (locationChart) locationChart.destroy();
+      const locCtx = document.getElementById('locationChart').getContext('2d');
+      locationChart = new Chart(locCtx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Pitches',
+              data: points,
+              pointRadius: 5,
+              backgroundColor: points.map(p => pitchColorMap[p.type]),
+              borderColor: 'black'
+            },
+            {
+              type: 'line',
+              label: 'Home Plate',
+              data: [
+                {x: -0.708, y: 0}, {x: -0.533, y: -0.2},
+                {x: 0, y: -0.4},
+                {x: 0.533, y: -0.2}, {x: 0.708, y: 0},
+                {x: -0.708, y: 0}
+              ],
+              borderColor: 'black',
+              borderWidth: 1,
+              showLine: true,
+              fill: false,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            annotation: {
+              annotations: {
+                heart: { type: 'box', xMin: -0.558, xMax: 0.558, yMin: 1.833, yMax: 3.166, backgroundColor: 'rgba(227,150,255,0.2)' },
+                shadow: { type: 'box', xMin: -1.108, xMax: 1.108, yMin: 1.166, yMax: 3.833, backgroundColor: 'rgba(255,197,150,0.2)' },
+                chase: { type: 'box', xMin: -1.666, xMax: 1.666, yMin: 0.5, yMax: 4.5, backgroundColor: 'rgba(209,209,209,0.2)' }
+              }
+            }
+          },
+          scales: {
+            x: { min: -2, max: 2, grid: { display: false }, title: { display: true, text: 'Plate Side (ft)' }},
+            y: { min: -0.5, max: 5, grid: { display: false }, title: { display: true, text: 'Plate Height (ft)' }}
+          }
+        }
+      });
+
       const pieCtx = document.getElementById('pitchPieChart').getContext('2d');
       new Chart(pieCtx, {
         type: 'pie',
@@ -224,37 +271,6 @@
         table += `<tr><td>${t}</td><td>${avg(metrics[t].Velo)}</td><td>${avg(metrics[t].IVB)}</td><td>${avg(metrics[t].HB)}</td><td>${metrics[t].Tilt[0] || '--'}</td></tr>`;
       }
       document.getElementById('metricsTable').innerHTML = table;
-
-      if (locationChart) locationChart.destroy();
-      const locCtx = document.getElementById('locationChart').getContext('2d');
-      locationChart = new Chart(locCtx, {
-        type: 'scatter',
-        data: {
-          datasets: [{
-            label: 'Pitches',
-            data: points,
-            pointRadius: 5,
-            backgroundColor: points.map(p => pitchColorMap[p.type]),
-            borderColor: 'black'
-          }]
-        },
-        options: {
-          plugins: {
-            legend: { display: false },
-            annotation: {
-              annotations: {
-                heart: { type: 'box', xMin: -0.558, xMax: 0.558, yMin: 1.833, yMax: 3.166, backgroundColor: 'rgba(227,150,255,0.2)' },
-                shadow: { type: 'box', xMin: -1.108, xMax: 1.108, yMin: 1.166, yMax: 3.833, backgroundColor: 'rgba(255,197,150,0.2)' },
-                chase: { type: 'box', xMin: -1.666, xMax: 1.666, yMin: 0.5, yMax: 4.5, backgroundColor: 'rgba(209,209,209,0.2)' }
-              }
-            }
-          },
-          scales: {
-            x: { min: -2, max: 2, grid: { display: false }, title: { display: true, text: 'Plate Side (ft)' }},
-            y: { min: 0, max: 5, grid: { display: false }, title: { display: true, text: 'Plate Height (ft)' }}
-          }
-        }
-      });
 
       const mlAvg = { heart: '27.6%', shadow: '42.9%', chase: '21.6%', waste: '7.8%' };
       const total = points.length;
