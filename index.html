@@ -51,10 +51,11 @@
     .bottom-left, .bottom-right { width: 48%; }
     canvas { background: white; border: 1px solid #ccc; }
     #downloadBtn { display: block; margin: 20px auto; }
+
     #zoneTable.pdf-scale {
       transform: scale(0.6);
       transform-origin: top left;
-      margin-left: 30px;
+      margin-left: 50px; /* shifted right */
     }
   </style>
 </head>
@@ -65,6 +66,7 @@
     <select id="dateSelect"></select>
     <button id="downloadBtn">Download PDF</button>
   </div>
+
   <div id="report">
     <div class="header-row">
       <div>
@@ -76,14 +78,32 @@
         <canvas id="pitchPieChart" width="200" height="200"></canvas>
       </div>
     </div>
+
     <div class="top-row">
       <div class="goals">
-        <div class="goal"><input type="text" value="Goal 1: Command 70%" /><select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select></div>
-        <div class="goal"><input type="text" value="Goal 2: First Pitch Strike 60%" /><select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select></div>
-        <div class="goal"><input type="text" value="Goal 3: 2K Putaway 25%" /><select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select></div>
+        <div class="goal"><input type="text" value="Goal 1: Command 70%" />
+          <select onchange="this.className=this.value;">
+            <option value="pass" class="pass">Pass</option>
+            <option value="fail" class="fail">Fail</option>
+          </select>
+        </div>
+        <div class="goal"><input type="text" value="Goal 2: First Pitch Strike 60%" />
+          <select onchange="this.className=this.value;">
+            <option value="pass" class="pass">Pass</option>
+            <option value="fail" class="fail">Fail</option>
+          </select>
+        </div>
+        <div class="goal"><input type="text" value="Goal 3: 2K Putaway 25%" />
+          <select onchange="this.className=this.value;">
+            <option value="pass" class="pass">Pass</option>
+            <option value="fail" class="fail">Fail</option>
+          </select>
+        </div>
       </div>
     </div>
+
     <table class="data-table" id="metricsTable"></table>
+
     <div class="bottom-row">
       <div class="bottom-left">
         <canvas id="locationChart" width="400" height="400"></canvas>
@@ -93,11 +113,20 @@
       </div>
     </div>
   </div>
+
   <script>
     let parsedData = [];
     let locationChart;
-    const pitchTypeMap = { Fastball: "FA", Sinker: "SI", Slider: "SL", Cutter: "CT", Changeup: "CH", Splitter: "CH", Curveball: "CB" };
-    const pitchColorMap = { FA: 'red', SI: '#a34700', SL: 'cornflowerblue', CT: 'gold', CH: 'violet', CB: 'darkgreen' };
+
+    const pitchTypeMap = {
+      Fastball: "FA", Sinker: "SI", Slider: "SL", Cutter: "CT",
+      Changeup: "CH", Splitter: "CH", Curveball: "CB"
+    };
+
+    const pitchColorMap = {
+      FA: 'red', SI: '#a34700', SL: 'cornflowerblue', CT: 'gold',
+      CH: 'violet', CB: 'darkgreen'
+    };
 
     document.getElementById('csvFile').addEventListener('change', function (e) {
       Papa.parse(e.target.files[0], {
@@ -141,6 +170,7 @@
     function drawReport(pitcher, date) {
       document.getElementById('subtitle').innerText = `${pitcher} – ${date}`;
       const data = parsedData.filter(d => d.first_last === pitcher && d.Date === date);
+
       const typeCounts = {};
       const zoneCounts = { heart: 0, shadow: 0, chase: 0, waste: 0 };
       const metrics = {};
@@ -150,12 +180,15 @@
         const tag = d.TaggedPitchType?.trim();
         const type = pitchTypeMap[tag];
         if (!type) return;
+
         typeCounts[type] = (typeCounts[type] || 0) + 1;
+
         const x = +d.PlateLocSide;
         const y = +d.PlateLocHeight;
         const zone = classifyAttackZone(x, y);
         zoneCounts[zone]++;
         points.push({ x, y, type });
+
         if (!metrics[type]) metrics[type] = { Velo: [], IVB: [], HB: [], Tilt: [] };
         if (+d.RelSpeed) metrics[type].Velo.push(+d.RelSpeed);
         if (+d.InducedVertBreak) metrics[type].IVB.push(+d.InducedVertBreak);
@@ -238,6 +271,7 @@
       const zoneTable = document.getElementById('zoneTable');
       if (locationChart) locationChart.resize();
       zoneTable.classList.add('pdf-scale');
+
       setTimeout(() => {
         html2pdf().set({
           margin: 0.2,
