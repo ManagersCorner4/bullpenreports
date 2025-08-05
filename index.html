@@ -18,7 +18,6 @@
       margin: auto;
       border: 1px solid #ccc;
       overflow: hidden;
-      page-break-inside: auto;
     }
     .header-row { display: flex; justify-content: space-between; align-items: center; }
     h1 { margin: 0; }
@@ -48,11 +47,17 @@
       display: flex;
       justify-content: space-between;
       margin-top: 30px;
-      page-break-inside: avoid;
     }
     .bottom-left, .bottom-right { width: 48%; }
     canvas { background: white; border: 1px solid #ccc; }
     #downloadBtn { display: block; margin: 20px auto; }
+
+    /* NEW: Only scale zone table for PDF export */
+    #zoneTable.pdf-scale {
+      transform: scale(0.67);
+      transform-origin: top left;
+      margin-left: 30px; /* optional tweak to center better */
+    }
   </style>
 </head>
 <body>
@@ -78,13 +83,13 @@
     <div class="top-row">
       <div class="goals">
         <div class="goal"><input type="text" value="Goal 1: Command 70%" />
-          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+          <select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select>
         </div>
         <div class="goal"><input type="text" value="Goal 2: First Pitch Strike 60%" />
-          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+          <select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select>
         </div>
         <div class="goal"><input type="text" value="Goal 3: 2K Putaway 25%" />
-          <select onchange="this.className=this.value;"> <option value="pass" class="pass">Pass</option> <option value="fail" class="fail">Fail</option> </select>
+          <select onchange="this.className=this.value;"><option value="pass" class="pass">Pass</option><option value="fail" class="fail">Fail</option></select>
         </div>
       </div>
     </div>
@@ -92,8 +97,12 @@
     <table class="data-table" id="metricsTable"></table>
 
     <div class="bottom-row">
-      <div class="bottom-left"><canvas id="locationChart" width="400" height="400"></canvas></div>
-      <div class="bottom-right"><table class="data-table" id="zoneTable"></table></div>
+      <div class="bottom-left">
+        <canvas id="locationChart" width="400" height="400"></canvas>
+      </div>
+      <div class="bottom-right">
+        <table class="data-table" id="zoneTable"></table>
+      </div>
     </div>
   </div>
 
@@ -251,7 +260,9 @@
     }
 
     document.getElementById('downloadBtn').addEventListener('click', () => {
+      const zoneTable = document.getElementById('zoneTable');
       if (locationChart) locationChart.resize();
+      zoneTable.classList.add('pdf-scale');
 
       setTimeout(() => {
         html2pdf().set({
@@ -260,8 +271,10 @@
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-        }).from(document.getElementById('report')).save();
-      }, 400); // wait for layout to stabilize
+        }).from(document.getElementById('report')).save().then(() => {
+          zoneTable.classList.remove('pdf-scale');
+        });
+      }, 400);
     });
   </script>
 </body>
