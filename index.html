@@ -51,10 +51,12 @@
     .bottom-left, .bottom-right { width: 48%; }
     canvas { background: white; border: 1px solid #ccc; }
     #downloadBtn { display: block; margin: 20px auto; }
+
+    /* Updated fix */
     #zoneTable.pdf-scale {
       transform: scale(0.75);
       transform-origin: top left;
-      margin-left: 1250px;
+      margin-left: 60px;
     }
   </style>
 </head>
@@ -212,9 +214,11 @@
               type: 'line',
               label: 'Home Plate',
               data: [
-                {x: -0.708, y: 0}, {x: -0.533, y: -0.2},
-                {x: 0, y: -0.4},
-                {x: 0.533, y: -0.2}, {x: 0.708, y: 0},
+                {x: -0.708, y: 0},
+                {x: -0.533, y: 0.2},
+                {x: 0, y: 0.4},
+                {x: 0.533, y: 0.2},
+                {x: 0.708, y: 0},
                 {x: -0.708, y: 0}
               ],
               borderColor: 'black',
